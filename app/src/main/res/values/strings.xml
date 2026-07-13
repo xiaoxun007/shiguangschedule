@@ -33,6 +33,9 @@
     <string name="nav_settings">我的</string>
     <string name="title_today_schedule">今日课表</string>
     <string name="text_no_courses_today">今天没有课程</string>
+    <string name="title_morning">上午</string>
+    <string name="title_afternoon">下午</string>
+    <string name="title_evening">晚上</string>
     <string name="title_vacation_until_start">假期中（距离开学还有%1$s天）</string>
     <string name="title_semester_not_set">请设置开学日期</string>
     <string name="date_format_year_month_day">yyyy年M月d日</string>

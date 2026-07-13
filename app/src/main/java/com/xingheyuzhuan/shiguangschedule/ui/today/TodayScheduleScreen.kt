@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -45,6 +46,15 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+
+enum class TimePeriod(val titleRes: Int) {
+    MORNING(R.string.title_morning),
+    AFTERNOON(R.string.title_afternoon),
+    EVENING(R.string.title_evening)
+}
+
+private val MORNING_END = LocalTime.NOON
+private val AFTERNOON_END = LocalTime.of(18, 0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,6 +98,19 @@ fun TodayScheduleScreen(
     }
 }
 
+private fun CourseDisplayModel.getTimePeriod(): TimePeriod {
+    val startTime = try {
+        LocalTime.parse(this.startTime ?: "00:00")
+    } catch (e: Exception) {
+        return TimePeriod.MORNING
+    }
+    return when {
+        startTime.isBefore(MORNING_END) -> TimePeriod.MORNING
+        startTime.isBefore(AFTERNOON_END) -> TimePeriod.AFTERNOON
+        else -> TimePeriod.EVENING
+    }
+}
+
 @Composable
 fun TodayContent(
     state: TodayUiState.Success,
@@ -95,6 +118,10 @@ fun TodayContent(
     isDark: Boolean
 ) {
     val currentTime = LocalTime.now()
+
+    val groupedCourses = remember(state.courses) {
+        state.courses.groupBy { it.getTimePeriod() }
+    }
 
     val targetScrollIndex = remember(state.courses, currentTime) {
         val firstActiveIndex = state.courses.indexOfFirst { model ->
@@ -106,8 +133,33 @@ fun TodayContent(
         }
 
         if (firstActiveIndex == -1) {
-            (state.courses.size - 1).coerceAtLeast(0)
+            var totalIndex = 0
+            listOf(TimePeriod.MORNING, TimePeriod.AFTERNOON, TimePeriod.EVENING).forEach { period ->
+                totalIndex += 2
+                val courses = groupedCourses[period] ?: emptyList()
+                if (courses.isNotEmpty()) {
+                    totalIndex += courses.size
+                }
+            }
+            (totalIndex - 1).coerceAtLeast(0)
         } else {
+            val targetCourse = state.courses[firstActiveIndex]
+            val targetPeriod = targetCourse.getTimePeriod()
+            var totalIndex = 0
+            listOf(TimePeriod.MORNING, TimePeriod.AFTERNOON, TimePeriod.EVENING).forEach { period ->
+                if (period == targetPeriod) {
+                    totalIndex += 2
+                    val courses = groupedCourses[period] ?: emptyList()
+                    val courseIndexInPeriod = courses.indexOf(targetCourse)
+                    totalIndex += courseIndexInPeriod
+                    return@remember totalIndex
+                }
+                totalIndex += 2
+                val courses = groupedCourses[period] ?: emptyList()
+                if (courses.isNotEmpty()) {
+                    totalIndex += courses.size
+                }
+            }
             firstActiveIndex
         }
     }
@@ -161,17 +213,51 @@ fun TodayContent(
         } else {
             LazyColumn(
                 state = scrollState,
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                itemsIndexed(state.courses) { _, model ->
-                    CourseTimelineItem(model, gridStyle, isDark)
+                listOf(TimePeriod.MORNING, TimePeriod.AFTERNOON, TimePeriod.EVENING).forEach { period ->
+                    item {
+                        TimePeriodHeader(period)
+                    }
+                    item {
+                        Divider(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                            thickness = 1.dp
+                        )
+                    }
+                    val courses = groupedCourses[period] ?: emptyList()
+                    if (courses.isEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    } else {
+                        itemsIndexed(courses) { _, model ->
+                            CourseTimelineItem(model, gridStyle, isDark)
+                        }
+                    }
                 }
                 item {
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TimePeriodHeader(period: TimePeriod) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(period.titleRes),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
     }
 }
 
